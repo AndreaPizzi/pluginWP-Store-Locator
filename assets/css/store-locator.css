@@ -1,0 +1,58 @@
+.sl-wrapper {
+    width: 100%;
+}
+
+#sl-map {
+    width: 100%;
+    height: 500px;
+}
+
+.sl-infowindow h4 {
+    margin: 0 0 5px;
+    font-size: 16px;
+}
+
+.sl-infowindow p {
+    margin: 0;
+    font-size: 14px;
+}
+
+#sl-reset {
+    display: none;
+}
+
+.sl-filters{
+    position: absolute;
+    z-index: 999;
+    max-width: 16rem;
+    padding: 1rem;
+    background-color: #fff;
+    border-radius: 0 0 1rem 0   rem;
+    -webkit-box-shadow: 17px 17px 26px -16px rgba(0, 0, 0, 0.35);
+    box-shadow: 17px 17px 26px -16px rgba(0, 0, 0, 0.35);
+
+    select{
+        margin-bottom: .5rem;
+    }
+}
+
+/* Legenda */
+
+.sl-legend {
+    margin-top: 20px;
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.sl-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+}
+
+.sl-legend-item img {
+    width: 24px;
+    height: 24px;
+}

@@ -1,1 +1,0 @@
-# pluginWP-Store-Locator
