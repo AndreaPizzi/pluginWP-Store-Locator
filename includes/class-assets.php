@@ -43,7 +43,8 @@ class SL_Assets {
 
         wp_localize_script('store-locator-js', 'SL_Config', [
             'ajax_url' => admin_url('admin-ajax.php'),
-            'default_marker' => get_field('marker_placeholder', 'option')
+            'default_marker' => get_field('marker_placeholder', 'option'),
+            'map_style' => get_field('google_map_style', 'option')
 
         ]);
     }

@@ -2,40 +2,50 @@
 
     const StoreLocator = {
 
-        
-
         map: null,
         markers: [],
+        allStores: [],
+
         currentState: '',
         currentCity: '',
         currentTipologia: '',
+
         infoWindow: null,
+
         initialCenter: { lat: 41.8719, lng: 12.5674 },
         initialZoom: 6,
+
         hasInitialized: false,
         isResetting: false,
 
         init() {
-            
             this.initMap();
-            this.loadStates();
             this.bindEvents();
-            this.fetchStores(); // ← carica tutti gli store subito
-            this.loadTipologie();
-            this.buildLegend();
+            this.loadInitialData();
         },
 
         initMap() {
-            
+            let styles = null;
+
+            if (SL_Config.map_style) {
+                try {
+                    styles = JSON.parse(SL_Config.map_style);
+                } catch (e) {
+                    console.warn('Invalid Map Style JSON');
+                }
+            }
+
             this.map = new google.maps.Map(document.getElementById('sl-map'), {
-                zoom: 6,
-                center: this.initialCenter, // Italia default
-                zoomControl: this.initialZoom,
+                zoom: this.initialZoom,
+                center: this.initialCenter,
+                zoomControl: true,
                 mapTypeControl: false,
                 streetViewControl: false,
                 fullscreenControl: true,
-                gestureHandling: "greedy"
+                gestureHandling: "greedy",
+                styles: styles
             });
+
             this.infoWindow = new google.maps.InfoWindow();
         },
 
@@ -44,7 +54,7 @@
             $('#sl-state').on('change', (e) => {
                 this.currentState = e.target.value;
                 this.currentCity = '';
-                this.loadCities(this.currentState);
+                this.updateCities();
                 this.fetchStores();
                 this.toggleResetButton();
             });
@@ -66,81 +76,121 @@
             });
         },
 
-        loadStates() {
+        /*
+        =====================================
+        INITIAL LOAD
+        =====================================
+        */
+
+        loadInitialData() {
 
             $.post(SL_Config.ajax_url, {
-                action: 'sl_get_states'
-            }, (response) => {
-                
-                if (!response.success) return;
-
-                const select = $('#sl-state');
-                response.data.forEach(state => {
-                    select.append(`<option value="${state}">${state}</option>`);
-                });
-
-            });
-        },
-
-        loadTipologie() {
-
-            $.post(SL_Config.ajax_url, {
-                action: 'sl_get_tipologie'
+                action: 'sl_get_initial_data'
             }, (response) => {
 
                 if (!response.success) return;
 
-                const select = $('#sl-tipologia');
+                const data = response.data;
 
-                response.data.forEach(term => {
-                    select.append(
-                        `<option value="${term.slug}">${term.name}</option>`
-                    );
-                });
+                this.populateStates(data.states);
+                this.populateTipologie(data.tipologie);
+                this.buildLegend(data.tipologie);
 
+                this.allStores = data.stores;
+
+                this.renderMarkers(this.allStores);
             });
         },
 
-        loadCities(state) {
+        populateStates(states) {
+
+            const select = $('#sl-state');
+            select.html('<option value="">Seleziona Stato</option>');
+
+            states.forEach(state => {
+                select.append(`<option value="${state}">${state}</option>`);
+            });
+        },
+
+        populateTipologie(tipologie) {
+
+            const select = $('#sl-tipologia');
+            select.html('<option value="">Seleziona Tipologia</option>');
+
+            tipologie.forEach(term => {
+                select.append(
+                    `<option value="${term.slug}">${term.name}</option>`
+                );
+            });
+        },
+
+        /*
+        =====================================
+        CITY FILTER (client-side)
+        =====================================
+        */
+
+        updateCities() {
+
             const citySelect = $('#sl-city');
-            citySelect.prop('disabled', true).html('<option value="">Seleziona Città</option>');
+            citySelect
+                .prop('disabled', true)
+                .html('<option value="">Seleziona Città</option>');
 
-            if (!state) return;
+            if (!this.currentState) return;
 
-            $.post(SL_Config.ajax_url, {
-                action: 'sl_get_cities',
-                state: state
-            }, (response) => {
+            const cities = [...new Set(
+                this.allStores
+                    .filter(store => store.state === this.currentState)
+                    .map(store => store.city)
+            )];
 
-               
+            cities.sort();
 
-                if (!response.success) return;
-
-                response.data.forEach(city => {
-                    citySelect.append(`<option value="${city}">${city}</option>`);
-                });
-
-                citySelect.prop('disabled', false);
-
+            cities.forEach(city => {
+                citySelect.append(`<option value="${city}">${city}</option>`);
             });
+
+            citySelect.prop('disabled', false);
         },
+
+        /*
+        =====================================
+        FILTER STORES (client-side)
+        =====================================
+        */
 
         fetchStores() {
 
-            $.post(SL_Config.ajax_url, {
-                action: 'sl_get_stores',
-                state: this.currentState,
-                city: this.currentCity,
-                tipologia: this.currentTipologia
-            }, (response) => {
+            let filtered = this.allStores;
 
-                if (!response.success) return;
+            if (this.currentState) {
+                filtered = filtered.filter(store =>
+                    store.state === this.currentState
+                );
+            }
 
-                this.clearMarkers();
-                this.renderMarkers(response.data);
+            if (this.currentCity) {
+                filtered = filtered.filter(store =>
+                    store.city === this.currentCity
+                );
+            }
 
-            });
+            if (this.currentTipologia) {
+                filtered = filtered.filter(store =>
+                    store.tipologia === this.currentTipologia
+                );
+            }
+
+            this.clearMarkers();
+            this.renderMarkers(filtered);
         },
+
+        /*
+        =====================================
+        MARKERS
+        =====================================
+        */
 
         renderMarkers(stores) {
 
@@ -155,7 +205,9 @@
                     lng: parseFloat(store.lng)
                 };
 
-                const iconUrl = store.marker_icon ? store.marker_icon : SL_Config.default_marker;
+                const iconUrl = store.marker_icon
+                    ? store.marker_icon
+                    : SL_Config.default_marker;
 
                 const marker = new google.maps.Marker({
                     position: position,
@@ -163,10 +215,8 @@
                     title: store.title,
                     icon: iconUrl ? {
                         url: iconUrl,
-                        scaledSize: new google.maps.Size(60, 60) // dimensione personalizzata
+                        scaledSize: new google.maps.Size(60, 60)
                     } : null
-                   // icon: store.marker_icon ? store.marker_icon : SL_Config.default_marker
-
                 });
 
                 marker.addListener('click', () => {
@@ -177,24 +227,24 @@
                 bounds.extend(position);
             });
 
+            // FitBounds intelligente
             if (!this.isResetting) {
 
-            // Primo caricamento o filtro attivo
-            this.map.fitBounds(bounds);
+                this.map.fitBounds(bounds);
 
-            google.maps.event.addListenerOnce(this.map, 'bounds_changed', () => {
-                if (this.map.getZoom() > 14) {
-                    this.map.setZoom(14);
-                }
-            });
+                google.maps.event.addListenerOnce(this.map, 'bounds_changed', () => {
+                    if (this.map.getZoom() > 14) {
+                        this.map.setZoom(14);
+                    }
+                });
+            }
 
-        }
-
-        this.hasInitialized = true;
-        this.isResetting = false;
+            this.hasInitialized = true;
+            this.isResetting = false;
         },
 
         openInfoWindow(marker, store) {
+
             const content = `
                 <div class="sl-infowindow">
                     <h4>${store.title}</h4>
@@ -212,7 +262,39 @@
             this.markers = [];
         },
 
+        /*
+        =====================================
+        RESET
+        =====================================
+        */
+
+        resetFilters() {
+
+            this.currentState = '';
+            this.currentCity = '';
+            this.currentTipologia = '';
+
+            $('#sl-state').val('');
+            $('#sl-city')
+                .val('')
+                .prop('disabled', true)
+                .html('<option value="">Seleziona Città</option>');
+            $('#sl-tipologia').val('');
+
+            this.clearMarkers();
+
+            this.map.setZoom(this.initialZoom);
+            this.map.setCenter(this.initialCenter);
+
+            this.isResetting = true;
+
+            this.renderMarkers(this.allStores);
+
+            this.toggleResetButton();
+        },
+
         toggleResetButton() {
+
             const hasFilter =
                 this.currentState ||
                 this.currentCity ||
@@ -225,75 +307,42 @@
             }
         },
 
-        resetFilters() {
+        /*
+        =====================================
+        LEGEND
+        =====================================
+        */
 
-            // Reset stato interno
-            this.currentState = '';
-            this.currentCity = '';
-            this.currentTipologia = '';
+        buildLegend(tipologie) {
 
-            // Reset select UI
-            $('#sl-state').val('');
-            $('#sl-city')
-                .val('')
-                .prop('disabled', true)
-                .html('<option value="">Seleziona Città</option>');
+            const legend = $('#sl-legend');
+            if (!legend.length) return;
 
-            $('#sl-tipologia').val('');
+            legend.html('');
 
-            // Reset marker
-            this.clearMarkers();
+            tipologie.forEach(term => {
 
-            // Reset zoom + center
-            this.map.setZoom(this.initialZoom);
-            this.map.setCenter(this.initialCenter);
+                const icon = term.marker_icon
+                    ? term.marker_icon
+                    : SL_Config.default_marker;
 
-            this.isResetting = true;
-
-            // Ricarica tutti gli store
-            this.fetchStores();
-
-            this.toggleResetButton();
-        },
-        
-        buildLegend() {
-
-            $.post(SL_Config.ajax_url, {
-                action: 'sl_get_tipologie'
-            }, (response) => {
-
-                if (!response.success) return;
-
-                const legend = $('#sl-legend');
-                legend.html('');
-
-                response.data.forEach(term => {
-
-                    const icon = term.marker_icon 
-                        ? term.marker_icon 
-                        : SL_Config.default_marker;
-
-                    legend.append(`
-                        <div class="sl-legend-item">
-                            <img src="${icon}" />
-                            <span>${term.name}</span>
-                        </div>
-                    `);
-                });
-
+                legend.append(`
+                    <div class="sl-legend-item">
+                        <img src="${icon}" />
+                        <span>${term.name}</span>
+                    </div>
+                `);
             });
-        },
+        }
 
     };
 
     $(document).ready(function () {
 
-
         if ($('#sl-map').length) {
             StoreLocator.init();
         }
-    });
 
-    
+    });
 
 })(jQuery);

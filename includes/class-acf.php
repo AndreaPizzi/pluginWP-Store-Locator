@@ -4,6 +4,7 @@ class SL_ACF {
     public function __construct() {
         add_action('acf/init', [$this, 'register_fields']);
         add_action('acf/init', [$this, 'register_options_page']);
+        
     }
 
     public function register_fields() {
@@ -89,6 +90,14 @@ class SL_ACF {
                     'name' => 'marker_placeholder',
                     'type' => 'image',
                     'return_format' => 'url'
+                ],
+                [
+                    'key' => 'field_map_style',
+                    'label' => 'Google Map Style (JSON)',
+                    'name' => 'google_map_style',
+                    'type' => 'textarea',
+                    'instructions' => 'Incolla qui il JSON di SnazzyMaps',
+                    'rows' => 10,
                 ],
 
             ],
