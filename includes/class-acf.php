@@ -4,7 +4,34 @@ class SL_ACF {
     public function __construct() {
         add_action('acf/init', [$this, 'register_fields']);
         add_action('acf/init', [$this, 'register_options_page']);
-        
+        add_filter('acf/validate_value/name=google_map_style', [$this, 'validate_map_style'], 10, 4); // Valido il json dello stile della mappa prima di salvarlo
+    }
+
+    public function validate_map_style($valid, $value, $field, $input) {
+        if (!$valid) {
+            return $valid;
+        }
+
+        if (empty($value)) {
+            return $valid; // campo opzionale
+        }
+
+        // Rimuove gli slash automatici WP
+        $value = wp_unslash($value);
+
+        // Proviamo a decodificare il JSON
+        $decoded = json_decode($value, true);
+
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            return 'Il JSON inserito non è valido. Verifica la sintassi.';
+        }
+
+        // Controllo ulteriore: deve essere un array
+        if (!is_array($decoded)) {
+            return 'Il JSON deve rappresentare un array valido di stili Google Maps.';
+        }
+
+        return $valid;
     }
 
     public function register_fields() {
